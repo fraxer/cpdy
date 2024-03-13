@@ -1,6 +1,10 @@
+#define _GNU_SOURCE
 #include <string.h>
 #include <sys/time.h>
 #include <idn2.h>
+#include <resolv.h>
+#include <arpa/nameser.h>
+#include <netdb.h>
 
 #include "log.h"
 #include "mail.h"
@@ -22,6 +26,8 @@ int __mail_send_reset(mail_t* instance);
 void __mail_free(mail_t* instance);
 const char* __mail_domain_from_email(const char* email);
 int __mail_set_conn_timeout(const int fd);
+int __mail_get_mx_servers(const char* host, mail_mx_record_t* mx_records);
+int __mail_parse_mx_record(unsigned char* buffer, size_t r, ns_sect s, int idx, ns_msg* message, mail_mx_record_t* mx_record);
 
 mail_t* mail_create() {
     mail_t* instance = malloc(sizeof * instance);
@@ -97,41 +103,41 @@ int __mail_connect(mail_t* instance, const char* email) {
 
     log_info("Mail domain: %s", punycode_domain);
 
-    void* mx_records = get_mx_servers(punycode_domain);
+    mail_mx_record_t mx_records[MAIL_RECORDS_SIZE];
+    memset(mx_records, 0, sizeof(mail_mx_record_t) * MAIL_RECORDS_SIZE);
+    r = __mail_get_mx_servers(punycode_domain, mx_records);
 
     free(punycode_domain);
 
-    // if(mx_records.size() == 0) {
-    //     syslog(LOG_ERR, "[ERROR][mail/mail.cpp][createConnection] Not found servers\n");
-    //     return false;
-    // }
+    if (!r) {
+        log_error("[__mail_connect] Not found servers\n");
+        return 0;
+    }
 
-    // map<int, mx_domain*>::iterator it = mx_records.begin();
+    for (int i = 0; i < MAIL_RECORDS_SIZE; i++) {
+        mail_mx_record_t* record = &mx_records[i];
+        if (!record->ok) continue;
 
-    // syslog(LOG_INFO, "[INFO][mail/mail.cpp][createConnection] MX server ip: %d", it->second->ip_list[0].s_addr);
+        for (int j = 0; j < MAIL_IP_LIST_SIZE; j++) {
+            log_info("MX server ip: %d\n", record->ip_list[j].s_addr);
 
-    // struct in_addr ip_addr = it->second->ip_list[0];
+            if (record->ip_list[0].s_addr == 0) continue;
 
-    // sockaddr_in sockaddr;
+            struct sockaddr_in sockaddr;
+            memset(&sockaddr, 0, sizeof(sockaddr));
 
-    // bzero((void*)&sockaddr,sizeof(sockaddr));
+            sockaddr.sin_family = AF_INET;
+            sockaddr.sin_port = htons(instance->connection->port);
+            sockaddr.sin_addr.s_addr = record->ip_list[0].s_addr;
 
-    // sockaddr.sin_family      = AF_INET;
-    // sockaddr.sin_port        = htons(this->port);
-    // sockaddr.sin_addr.s_addr = ip_addr.s_addr;
+            if (connect(instance->connection->fd, (struct sockaddr*)&sockaddr, sizeof(sockaddr)) == -1) {
+                log_error("[createConnection] Error in connect\n");
+                continue;
+            }
 
-    // if(connect(this->socket, (struct sockaddr*) &sockaddr, sizeof(sockaddr)) == -1) {
-    //     syslog(LOG_ERR, "[ERROR][mail/mail.cpp][createConnection] Error in connect\n");
-    //     return false;
-    // }
-
-    // for(auto &x : mx_records) {
-    //     delete x.second;
-    // }
-
-    // mx_records.clear();
-
-    // this->connected = true;
+            return 1;
+        }
+    }
 
     return 0;
 }
@@ -271,4 +277,102 @@ int __mail_set_conn_timeout(const int fd) {
     }
 
     return 1;
+}
+
+int __mail_get_mx_servers(const char* host, mail_mx_record_t* mx_records) {
+    union {
+        HEADER hdr;
+        unsigned char buf[NS_PACKETSZ];
+    } buffer;
+
+    const int buffer_size = res_query(host, ns_c_in, ns_t_mx, (unsigned char*)&buffer, sizeof(buffer));
+    if (buffer_size == -1) {
+        log_error("[getMXServers] Empty buffer: %s\n", strerror(errno));
+        return 0;
+    }
+
+    if (buffer.hdr.rcode != NOERROR) {
+        switch (buffer.hdr.rcode) {
+            case FORMERR:
+                log_error("[getMXServers] Buffer error: Format error\n");
+                break;
+            case SERVFAIL:
+                log_error("[getMXServers] Buffer error: Server failure\n");
+                break;
+            case NXDOMAIN:
+                log_error("[getMXServers] Buffer error: Name error\n");
+                break;
+            case NOTIMP:
+                log_error("[getMXServers] Buffer error: Not implemented\n");
+                break;
+            case REFUSED:
+                log_error("[getMXServers] Buffer error: Refused\n");
+                break;
+            default:
+                log_error("[getMXServers] Buffer error: Unknown error\n");
+        }
+
+        return 0;
+    }
+
+    ns_msg message;
+    if (ns_initparse(buffer.buf, buffer_size, &message) == -1) {
+        log_error("[getMXServers] Can't init parse ns: %s\n", strerror(errno));
+        return 0;
+    }
+
+    ns_rr resource_record;
+    if (ns_parserr(&message, ns_s_qd, 0, &resource_record) == -1) {
+        log_error("[getMXServers] Can't parse question section: %s\n", strerror(errno));
+        return 0;
+    }
+
+    int result = 0;
+    int answers = ntohs(buffer.hdr.ancount);
+    answers = answers > MAIL_RECORDS_SIZE ? MAIL_RECORDS_SIZE : answers;
+    for (int i = 0; i < answers; ++i)
+        if (__mail_parse_mx_record(buffer.buf, buffer_size, ns_s_an, i, &message, &mx_records[i]))
+            result = 1;
+
+    return result;
+}
+
+int __mail_parse_mx_record(unsigned char* buffer, size_t r, ns_sect s, int idx, ns_msg* message, mail_mx_record_t* mx_record) {
+    ns_rr resource_record;
+    if (ns_parserr(message, s, idx, &resource_record) == -1) {
+        log_error("[parseMxRecord] Can't parse answer section: %s\n", strerror(errno));
+        return 0;
+    }
+
+    if (ns_rr_type(resource_record) != ns_t_mx)
+        return 0;
+
+    const unsigned char* data = ns_rr_rdata(resource_record);
+    mx_record->preference = ns_get16(data);
+
+    {
+        unsigned char tmpname[NS_MAXDNAME];
+        ns_name_unpack(buffer, buffer + r, data + sizeof(u_int16_t), tmpname, NS_MAXDNAME);
+        ns_name_ntop(tmpname, mx_record->domain, NS_MAXDNAME);
+    }
+
+    struct hostent* he = gethostbyname(mx_record->domain);
+    if (he == NULL) {
+        log_error("[parseMxRecord] Error get host by name\n");
+        return 0;
+    }
+
+    mx_record->ok = 1;
+
+    int result = 0;
+    struct in_addr** addr_list = (struct in_addr**)he->h_addr_list;
+    for (int i = 0; addr_list[i] != NULL && i < MAIL_IP_LIST_SIZE; i++) {
+        log_info("%d\n", *addr_list[i]);
+
+        memcpy(&mx_record->ip_list[i], addr_list[i], sizeof(struct in_addr));
+    }
+
+    log_info("[parseMxRecord] pref: %d, host name: %s\n", mx_record->preference, mx_record->domain);
+
+    return result;
 }

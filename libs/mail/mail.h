@@ -5,6 +5,9 @@
 
 #include "openssl.h"
 
+#define MAIL_IP_LIST_SIZE 5
+#define MAIL_RECORDS_SIZE 5
+
 typedef struct mail_string {
     char key[64];
     char value[2048];
@@ -51,6 +54,13 @@ typedef struct mail {
 
     void(*free)(struct mail* instance);
 } mail_t;
+
+typedef struct mail_mx_record {
+    int ok;
+    int preference;
+    char domain[NS_MAXDNAME];
+    struct in_addr ip_list[MAIL_IP_LIST_SIZE];
+} mail_mx_record_t;
 
 mail_t* mail_create();
 
