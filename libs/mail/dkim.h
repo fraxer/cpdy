@@ -38,10 +38,10 @@ THE SOFTWARE.
 
 
 typedef struct {
-	char* key;
-	char* value;
+	char key[128];
+	char value[1024];
 } stringpair;
 
-char* dkim_create(stringpair** headers, int headerc, char* body, char* private_key, char* domain, char* selector);
+char* dkim_create(stringpair* headers, int headerc, const char* body, const char* private_key, const char* domain, const char* selector);
 
 #endif

@@ -77,3 +77,13 @@ void protmgr_set_websockets_resource(connection_t* connection) {
 
     connection->response = (response_t*)websocketsresponse_create(connection);
 }
+
+// void protmgr_set_client_smtp(connection_t* connection) {
+//     connection->read = smtp_client_read;
+//     connection->write = smtp_client_write;
+// }
+
+// void protmgr_set_client_smtp_tls(connection_t* connection) {
+//     connection->read = smtp_tls_client_read;
+//     connection->write = smtp_tls_client_write;
+// }

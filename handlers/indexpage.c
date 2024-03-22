@@ -19,7 +19,18 @@ void get(http1request_t* request, http1response_t* response) {
         .same_site = "Lax"
     });
 
-    response->data(response, "done");
+    const char* source = "encoded_from_name = bas4_encodekimnssigned char*)from_name, len);encoded_from_name = base64_encode_dkim((const unsigned char*)from_name, len);encoded_from_name = base64_encode_dkim((const unsigned char*)from_name, len);encoded_from_name = base64_encode_dkim((const unsigned char*)from_name, len);encoded_from_name = base64_encode_dkim((const unsigned char*)from_name, len);encoded_from_name = base64_encode_dkim((const unsigned char*)from_name, len);encoded_from_name = base64_encode_dkim((const unsigned char*)from_name, len);";
+    size_t s = strlen(source);
+    char result[base64_encode_len(s)];
+    int retlen = base64_encode(result, source, s);
+
+    // const char* b64 = "ZW5jb2RlZF9mcm9tX25hbWUgPSBiYXM0X2VuY29kZWtpbW5zc2lnbmVkIGNoYXIq\r\nKWZyb21fbmFtZSwgbGVuKTtlbmNvZGVkX2Zyb21fbmFtZSA9IGJhc2U2NF9lbmNv\r\nZGVfZGtpbSgoY29uc3QgdW5zaWduZWQgY2hhciopZnJvbV9uYW1lLCBsZW4pO2Vu\r\nY29kZWRfZnJvbV9uYW1lID0gYmFzZTY0X2VuY29kZV9ka2ltKChjb25zdCB1bnNp\r\nZ25lZCBjaGFyKilmcm9tX25hbWUsIGxlbik7ZW5jb2RlZF9mcm9tX25hbWUgPSBi\r\nYXNlNjRfZW5jb2RlX2RraW0oKGNvbnN0IHVuc2lnbmVkIGNoYXIqKWZyb21fbmFt\r\nZSwgbGVuKTtlbmNvZGVkX2Zyb21fbmFtZSA9IGJhc2U2NF9lbmNvZGVfZGtpbSgo\r\nY29uc3QgdW5zaWduZWQgY2hhciopZnJvbV9uYW1lLCBsZW4pO2VuY29kZWRfZnJv\r\nbV9uYW1lID0gYmFzZTY0X2VuY29kZV9ka2ltKChjb25zdCB1bnNpZ25lZCBjaGFy\r\nKilmcm9tX25hbWUsIGxlbik7ZW5jb2RlZF9mcm9tX25hbWUgPSBiYXNlNjRfZW5j\r\nb2RlX2RraW0oKGNvbnN0IHVuc2lnbmVkIGNoYXIqKWZyb21fbmFtZSwgbGVuKTs=";
+
+    // size_t b64s = base64_decode_len(b64);
+    // char result[b64s];
+    // size_t s = base64_decode(result, b64);
+
+    response->data(response, result);
 }
 
 void post_urlencoded(http1request_t* request, http1response_t* response) {

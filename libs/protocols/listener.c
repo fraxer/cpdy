@@ -61,7 +61,7 @@ int __listener_after_read_request(connection_t* connection) {
 
 int __listener_after_write_request(connection_t* connection) {
     if (connection->keepalive_enabled == 0)
-        return connection->close(connection);
+        return connection->api->control_mod(connection, MPXIN | MPXHUP);
 
     connection_reset(connection);
 
@@ -74,12 +74,8 @@ int __listener_after_write_request(connection_t* connection) {
     const int onwrite = !cqueue_empty(connection->queue);
     cqueue_unlock(connection->queue);
 
-    if (onwrite) {
-        atomic_store(&connection->onwrite, 1);
+    if (onwrite)
         return 1;
-    }
-
-    atomic_store(&connection->onwrite, 0);
 
     return connection->api->control_mod(connection, MPXIN | MPXRDHUP);
 }
@@ -88,9 +84,7 @@ int __listener_queue_prepend(connection_queue_item_t* item) {
     if (!item->connection->api->control_mod(item->connection, MPXONESHOT))
         return 0;
 
-    atomic_store(&item->connection->onwrite, 1);
-
-    connection_queue_guard_prepend(item);
+    connection_queue_guard_append(item);
 
     return 1;
 }
@@ -105,6 +99,10 @@ int __listener_queue_pop(connection_t* connection) {
 }
 
 int listener_connection_close(connection_t* connection) {
+    connection_lock(connection);
+
+    log_error("Connection close\n");
+
     if (!connection->api->control_del(connection))
         log_error("Connection not removed from api\n");
 

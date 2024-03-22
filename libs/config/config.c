@@ -81,6 +81,9 @@ config_t* __config_create() {
     config->main.threads = 0;
     config->main.tmp = NULL;
     config->main.workers = 0;
+    config->mail.dkim_private = "";
+    config->mail.dkim_selector = "";
+    config->mail.host = "";
     config->migrations.source_directory = "";
     config->servers = NULL;
     config->mimetypes = NULL;
@@ -247,6 +250,23 @@ int __config_fill_struct() {
     const jsontok_t* token_mimetypes = json_object_get(root, "mimetypes");
     if (!json_is_object(token_mimetypes)) return 0;
     _config->mimetypes = token_mimetypes;
+
+
+
+    const jsontok_t* token_mail = json_object_get(root, "mail");
+    if (!json_is_object(token_mail)) return 0;
+
+    const jsontok_t* token_dkim_private = json_object_get(token_mail, "dkim_private");
+    if (!json_is_string(token_dkim_private)) return 0;
+    _config->mail.dkim_private = json_string(token_dkim_private);
+
+    const jsontok_t* token_dkim_selector = json_object_get(token_mail, "dkim_selector");
+    if (!json_is_string(token_dkim_selector)) return 0;
+    _config->mail.dkim_selector = json_string(token_dkim_selector);
+
+    const jsontok_t* token_host = json_object_get(token_mail, "host");
+    if (!json_is_string(token_host)) return 0;
+    _config->mail.host = json_string(token_host);
 
     return 1;
 }

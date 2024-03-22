@@ -52,10 +52,10 @@ connection_t* connection_alloc(int fd, mpxapi_t* api, in_addr_t ip, unsigned sho
     connection->fd = fd;
     connection->api = api;
     connection->keepalive_enabled = 0;
+    connection->closed = 0;
     connection->ip = ip;
     connection->port = port;
     atomic_store(&connection->locked, 0);
-    atomic_store(&connection->onwrite, 0);
     connection->ssl = NULL;
     connection->ssl_ctx = NULL;
     connection->server = NULL;
@@ -151,16 +151,5 @@ int connection_unlock(connection_t* connection) {
 }
 
 int connection_alive(connection_t* connection) {
-    return connection->fd > 0;
-}
-
-int connection_trylockwrite(connection_t* connection) {
-    if (connection == NULL) return 0;
-
-    _Bool expected = 1;
-    _Bool desired = 0;
-
-    if (atomic_compare_exchange_strong(&connection->onwrite, &expected, desired)) return 1;
-
-    return 0;
+    return connection->closed == 0;
 }

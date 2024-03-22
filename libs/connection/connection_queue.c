@@ -74,11 +74,11 @@ connection_queue_item_t* __connection_queue_pop() {
         if (!connection_lock(connection))
             continue;
 
-        if (connection_alive(connection) && !connection_trylockwrite(connection)) {
-            connection->queue_pop(connection);
-            connection_unlock(connection);
-            continue;
-        }
+        // if (connection_alive(connection) && !connection_trylockwrite(connection)) {
+        //     connection->queue_pop(connection);
+        //     connection_unlock(connection);
+        //     continue;
+        // }
 
         cqueue_lock(connection->queue);
 
@@ -123,13 +123,6 @@ int connection_queue_init() {
 void connection_queue_guard_append(connection_queue_item_t* item) {
     pthread_mutex_lock(&connection_queue_mutex);
     __connection_queue_append(item);
-    pthread_cond_signal(&connection_queue_cond);
-    pthread_mutex_unlock(&connection_queue_mutex);
-}
-
-void connection_queue_guard_prepend(connection_queue_item_t* item) {
-    pthread_mutex_lock(&connection_queue_mutex);
-    __connection_queue_prepend(item);
     pthread_cond_signal(&connection_queue_cond);
     pthread_mutex_unlock(&connection_queue_mutex);
 }

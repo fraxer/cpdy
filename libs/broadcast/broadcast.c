@@ -387,6 +387,7 @@ void broadcast_clear(connection_t* connection) {
                 if (next_item == list->item_last)
                     list->item_last = item;
                 __broadcast_free_item(next_item);
+                next_item = item->next;
             }
 
             __broadcast_unlock_item(item);

@@ -4,8 +4,9 @@ project(cpdy LANGUAGES C)
 
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/exec")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address")
 
-add_compile_options(-Wall -Wextra -Wpedantic -fPIC)
+add_compile_options(-Wall -Wextra -Wpedantic -fPIC -fsanitize=address -fsanitize=leak -g)
 add_compile_definitions(CMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE}")
 
 find_package(Threads REQUIRED)

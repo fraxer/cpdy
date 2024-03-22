@@ -26,12 +26,13 @@ THE SOFTWARE.
 #include <unistd.h>
 #include <string.h>
 #include <time.h>
+#include <ctype.h>
 
 #include "log.h"
 #include "dkim.h"
     
-stringpair **relaxed_header_canon(stringpair **headers, int headerc);
-char *relaxed_body_canon(char *body);
+int relaxed_header_canon(stringpair* newheaders, stringpair* headers, int headerc);
+char *relaxed_body_canon(const char *body);
 char *relaxed_body_canon_line(char *line);    
 
 char *rtrim_lines(char *str);
@@ -46,7 +47,7 @@ char *base64_encode(const unsigned char *input, int length);
  * Create a DKIM-signature header value
  * http://tools.ietf.org/html/rfc4871
  */
-char* dkim_create(stringpair **headers, int headerc, char *body, char* private_key, char *domain, char *selector) {
+char* dkim_create(stringpair* headers, int headerc, const char *body, const char* private_key, const char *domain, const char *selector) {
     RSA* rsa_private = dkim_rsa_read_pem(private_key);
     if (rsa_private == NULL) {
         log_error("DKIM error loading rsa key\n");
@@ -54,7 +55,9 @@ char* dkim_create(stringpair **headers, int headerc, char *body, char* private_k
     }
 
     /* relax canonicalization for headers */
-    stringpair **new_headers = relaxed_header_canon(headers, headerc);
+    stringpair new_headers[headerc + 1];
+    if (!relaxed_header_canon(new_headers, headers, headerc))
+        return NULL;
 
     /* relax canonicalization for body */
     char* new_body = relaxed_body_canon(body);
@@ -78,7 +81,7 @@ char* dkim_create(stringpair **headers, int headerc, char *body, char* private_k
             header_list_len += sprintf(header_list + header_list_len, ":");
         }
     
-        header_list_len += sprintf(header_list + header_list_len, "%s", new_headers[i]->key);
+        header_list_len += sprintf(header_list + header_list_len, "%s", new_headers[i].key);
     }
 
 	/* signature timestamp */
@@ -92,14 +95,12 @@ char* dkim_create(stringpair **headers, int headerc, char *body, char* private_k
     );
     
     /* free some memory */
-    
     free (header_list);
     free (bh);
     
     /* add dkim header to headers */
-    new_headers[headerc] = malloc(sizeof(stringpair));
-    new_headers[headerc]->key = "dkim-signature";
-    new_headers[headerc]->value = dkim;
+    strncpy(new_headers[headerc].key, "dkim-signature", 127);
+    strncpy(new_headers[headerc].value, dkim, 1023);
     headerc++;
     
     /* make a string of all headers */
@@ -107,16 +108,16 @@ char* dkim_create(stringpair **headers, int headerc, char *body, char* private_k
     int header_str_len = 0;
     
     for (int i = 0; i < headerc; ++i) {
-        int key_len = strlen(new_headers[i]->key);
-        int value_len = strlen(new_headers[i]->value);
+        int key_len = strlen(new_headers[i].key);
+        int value_len = strlen(new_headers[i].value);
     
-        memcpy (header_str+header_str_len, new_headers[i]->key, key_len);
+        memcpy (header_str+header_str_len, new_headers[i].key, key_len);
         header_str_len += key_len;
         
         memcpy (header_str+header_str_len, ":", 1);
         header_str_len++;
         
-        memcpy (header_str+header_str_len, new_headers[i]->value, value_len);
+        memcpy (header_str+header_str_len, new_headers[i].value, value_len);
         header_str_len += value_len;
         
         if (i < headerc-1) {
@@ -136,7 +137,6 @@ char* dkim_create(stringpair **headers, int headerc, char *body, char* private_k
     if (RSA_sign(NID_sha1, hash, SHA_DIGEST_LENGTH, sig, &sig_len, rsa_private) == 0) {
         printf (" * ERROR RSA_sign(): %s\n", ERR_error_string(ERR_get_error(), NULL));
         free (hash);
-        free (new_headers);
         free (header_str);
         free (sig);
         RSA_free (rsa_private);
@@ -158,12 +158,6 @@ char* dkim_create(stringpair **headers, int headerc, char *body, char* private_k
     dkim = wrap(dkim, dkim_len);
     
     /* free some more memory */
-    for (int i = 0; i < headerc; ++i) {
-        if (i < headerc-1) free (new_headers[i]->key);
-        if (i < headerc-1) free (new_headers[i]->value);
-        free (new_headers[i]);
-    }
-    free (new_headers);
     free (header_str);
     free (sig);
     free (sig_b64);
@@ -176,33 +170,28 @@ char* dkim_create(stringpair **headers, int headerc, char *body, char* private_k
 }
 
 /* The "relaxed" Header Canonicalization Algorithm */
-stringpair **relaxed_header_canon(stringpair **headers, int headerc) {
+int relaxed_header_canon(stringpair* new_headers, stringpair* headers, int headerc) {
     int i = 0;
     int e = 0;
-    
+
     /* Copy all headers */
-    stringpair **new_headers = (stringpair**)malloc(sizeof(stringpair*) * (headerc + 1));   
-       
     for (i = 0; i < headerc; ++i) {
-        int key_len = strlen(headers[i]->key);
-        int val_len = strlen(headers[i]->value);
-        
-        new_headers[i] = (stringpair*)malloc(sizeof(stringpair));
-        new_headers[i]->key = malloc(key_len+1);
-        new_headers[i]->value = malloc(val_len+1);
-        
-        memcpy (new_headers[i]->key, headers[i]->key, key_len+1);
-        memcpy (new_headers[i]->value, headers[i]->value, val_len+1);
+        int key_len = strlen(headers[i].key);
+        int val_len = strlen(headers[i].value);
+
+        new_headers[i].key[0] = 0;
+        new_headers[i].value[0] = 0;
+
+        memcpy(new_headers[i].key, headers[i].key, key_len+1);
+        memcpy(new_headers[i].value, headers[i].value, val_len+1);
     }
 
     /* Convert all header field names (not the header field values) to
        lowercase.  For example, convert "SUBJect: AbC" to "subject: AbC". */
     for (i = 0; i < headerc; ++i) {
-        int key_len = strlen(new_headers[i]->key);
-
-        for (e = 0; e < key_len; ++e) {
-            new_headers[i]->key[e] = tolower(new_headers[i]->key[e]);
-        }
+        const int key_len = strlen(new_headers[i].key);
+        for (e = 0; e < key_len; ++e)
+            new_headers[i].key[e] = tolower(new_headers[i].key[e]);
     }
     
     /* Unfold all header field continuation lines as described in
@@ -211,46 +200,46 @@ stringpair **relaxed_header_canon(stringpair **headers, int headerc) {
        WSP) MUST be interpreted without the CRLF.  Implementations MUST
        NOT remove the CRLF at the end of the header field value. */
     for (i = 0; i < headerc; ++i) {
-        int val_len = strlen(new_headers[i]->value);
+        int val_len = strlen(new_headers[i].value);
         int new_len = 0;
 
         for (e = 0; e < val_len; ++e) {
             if (e < val_len + 1) {
-                if (!(new_headers[i]->value[e] == '\r' && new_headers[i]->value[e+1] == '\n')) {
-                    new_headers[i]->value[new_len++] = new_headers[i]->value[e];
+                if (!(new_headers[i].value[e] == '\r' && new_headers[i].value[e+1] == '\n')) {
+                    new_headers[i].value[new_len++] = new_headers[i].value[e];
                 } else {
                     ++e;
                 }
             } else {
-                new_headers[i]->value[new_len++] = new_headers[i]->value[e];
+                new_headers[i].value[new_len++] = new_headers[i].value[e];
             }
         }
         
-        new_headers[i]->value[new_len] = '\0';
+        new_headers[i].value[new_len] = '\0';
     }
     
     /* Convert all sequences of one or more WSP characters to a single SP
        character.  WSP characters here include those before and after a
        line folding boundary. */
     for (i = 0; i < headerc; ++i) {
-        int val_len = strlen(new_headers[i]->value);
+        int val_len = strlen(new_headers[i].value);
         int new_len = 0;
 
         for (e = 0; e < val_len; ++e) {
-            if (new_headers[i]->value[e] == '\t') {
-                new_headers[i]->value[e] = ' ';
+            if (new_headers[i].value[e] == '\t') {
+                new_headers[i].value[e] = ' ';
             }
         
             if (e > 0) {
-                if (!(new_headers[i]->value[e-1] == ' ' && new_headers[i]->value[e] == ' ')) {
-                    new_headers[i]->value[new_len++] = new_headers[i]->value[e];
+                if (!(new_headers[i].value[e-1] == ' ' && new_headers[i].value[e] == ' ')) {
+                    new_headers[i].value[new_len++] = new_headers[i].value[e];
                 } 
             } else {
-                new_headers[i]->value[new_len++] = new_headers[i]->value[e];
+                new_headers[i].value[new_len++] = new_headers[i].value[e];
             }
         }
         
-        new_headers[i]->value[new_len] = '\0';
+        new_headers[i].value[new_len] = '\0';
     }
     
     /* Delete all WSP characters at the end of each unfolded header field
@@ -259,16 +248,16 @@ stringpair **relaxed_header_canon(stringpair **headers, int headerc) {
        separating the header field name from the header field value.  The
        colon separator MUST be retained. */
     for (i = 0; i < headerc; ++i) {
-        new_headers[i]->value = rtrim(new_headers[i]->value);
-        new_headers[i]->value = ltrim(new_headers[i]->value);
+        strcpy(new_headers[i].value, rtrim(new_headers[i].value));
+        strcpy(new_headers[i].value, ltrim(new_headers[i].value));
     }
-    
-    return new_headers;
+
+    return 1;
 }
 
 
 /* The "relaxed" Body Canonicalization Algorithm */
-char *relaxed_body_canon(char *body) {
+char *relaxed_body_canon(const char *body) {
     int i = 0;
     int offset = 0;
     int body_len = strlen(body);

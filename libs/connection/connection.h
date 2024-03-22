@@ -16,10 +16,10 @@ struct connection_queue_item;
 typedef struct connection {
     int fd;
     int keepalive_enabled;
+    int closed : 1;
     in_addr_t ip;
     unsigned short int port;
     atomic_bool locked;
-    atomic_bool onwrite;
     struct mpxapi* api;
     SSL* ssl;
     SSL_CTX* ssl_ctx;
@@ -50,6 +50,5 @@ int connection_trylock(connection_t*);
 int connection_lock(connection_t*);
 int connection_unlock(connection_t*);
 int connection_alive(connection_t*);
-int connection_trylockwrite(connection_t*);
 
 #endif
