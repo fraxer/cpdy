@@ -21,9 +21,9 @@ void cqueue_free(cqueue_t* queue) {
 
     cqueue_item_t* item = queue->item;
     while (item) {
+        cqueue_item_t* next_item = item->next;
         cqueue_item_free(item);
-
-        item = item->next;
+        item = next_item;
     }
 
     queue->locked = 0;
@@ -82,6 +82,19 @@ int cqueue_empty(cqueue_t* queue) {
     if (queue == NULL) return 1;
 
     return queue->item == NULL;
+}
+
+int cqueue_size(cqueue_t* queue) {
+    if (queue == NULL) return 0;
+
+    int count = 0;
+    cqueue_item_t* item = queue->item;
+    while (item) {
+        count++;
+        item = item->next;
+    }
+
+    return count;
 }
 
 cqueue_item_t* cqueue_first(cqueue_t* queue) {

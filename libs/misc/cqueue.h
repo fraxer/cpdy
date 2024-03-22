@@ -21,6 +21,7 @@ int cqueue_append(cqueue_t*, cqueue_item_t*);
 int cqueue_prepend(cqueue_t*, cqueue_item_t*);
 void* cqueue_pop(cqueue_t*);
 int cqueue_empty(cqueue_t*);
+int cqueue_size(cqueue_t*);
 cqueue_item_t* cqueue_first(cqueue_t*);
 cqueue_item_t* cqueue_last(cqueue_t*);
 int cqueue_lock(cqueue_t*);

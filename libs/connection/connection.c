@@ -53,9 +53,11 @@ connection_t* connection_alloc(int fd, mpxapi_t* api, in_addr_t ip, unsigned sho
     connection->api = api;
     connection->keepalive_enabled = 0;
     connection->closed = 0;
+    connection->cqueue = 0;
     connection->ip = ip;
     connection->port = port;
     atomic_store(&connection->locked, 0);
+    atomic_store(&connection->onwrite, 0);
     connection->ssl = NULL;
     connection->ssl_ctx = NULL;
     connection->server = NULL;
@@ -67,8 +69,8 @@ connection_t* connection_alloc(int fd, mpxapi_t* api, in_addr_t ip, unsigned sho
     connection->write = NULL;
     connection->after_read_request = NULL;
     connection->after_write_request = NULL;
-    connection->queue_prepend = NULL;
     connection->queue_append = NULL;
+    connection->queue_append_broadcast = NULL;
     connection->queue_pop = NULL;
     connection->switch_to_protocol = NULL;
     connection->queue = cqueue_create();
@@ -151,5 +153,18 @@ int connection_unlock(connection_t* connection) {
 }
 
 int connection_alive(connection_t* connection) {
+    if (connection == NULL) return 0;
+
     return connection->closed == 0;
+}
+
+int connection_trylockwrite(connection_t* connection) {
+    if (connection == NULL) return 0;
+
+    _Bool expected = 0;
+    _Bool desired = 1;
+
+    if (atomic_compare_exchange_strong(&connection->onwrite, &expected, desired)) return 1;
+
+    return 0;
 }

@@ -8,8 +8,8 @@ int __listener_create_connection(connection_t*, server_t*);
 void __listener_connection_set_hooks(connection_t*);
 int __listener_after_read_request(connection_t*);
 int __listener_after_write_request(connection_t*);
-int __listener_queue_prepend(connection_queue_item_t*);
 int __listener_queue_append(connection_queue_item_t*);
+int __listener_queue_append_broadcast(connection_queue_item_t*);
 int __listener_queue_pop(connection_t*);
 int __listener_connection_set_event(connection_t*);
 
@@ -50,8 +50,8 @@ void __listener_connection_set_hooks(connection_t* connection) {
     connection->close = listener_connection_close;
     connection->after_read_request = __listener_after_read_request;
     connection->after_write_request = __listener_after_write_request;
-    connection->queue_prepend = __listener_queue_prepend;
     connection->queue_append = __listener_queue_append;
+    connection->queue_append_broadcast = __listener_queue_append_broadcast;
     connection->queue_pop = __listener_queue_pop;
 }
 
@@ -74,13 +74,17 @@ int __listener_after_write_request(connection_t* connection) {
     const int onwrite = !cqueue_empty(connection->queue);
     cqueue_unlock(connection->queue);
 
-    if (onwrite)
+    atomic_store(&connection->onwrite, 0);
+
+    if (onwrite) {
+        connection_queue_append_c(connection);
         return 1;
+    }
 
     return connection->api->control_mod(connection, MPXIN | MPXRDHUP);
 }
 
-int __listener_queue_prepend(connection_queue_item_t* item) {
+int __listener_queue_append(connection_queue_item_t* item) {
     if (!item->connection->api->control_mod(item->connection, MPXONESHOT))
         return 0;
 
@@ -89,8 +93,8 @@ int __listener_queue_prepend(connection_queue_item_t* item) {
     return 1;
 }
 
-int __listener_queue_append(connection_queue_item_t* item) {
-    connection_queue_guard_append(item);
+int __listener_queue_append_broadcast(connection_queue_item_t* item) {
+    connection_queue_guard_append_broadcast(item);
     return 1;
 }
 
@@ -113,13 +117,18 @@ int listener_connection_close(connection_t* connection) {
 
     shutdown(connection->fd, 2);
     close(connection->fd);
+    connection->closed = 1;
 
     cqueue_lock(connection->queue);
     const int queue_empty = cqueue_empty(connection->queue);
     cqueue_unlock(connection->queue);
 
-    if (queue_empty)
+    connection_queue_append_c(connection);
+
+    if (queue_empty && connection->cqueue == 0)
         connection_free(connection);
+    else
+        connection_unlock(connection);
 
     return 1;
 }

@@ -15,6 +15,7 @@
 
 typedef struct connection_queue_http1_data {
     connection_queue_item_data_t base;
+    request_t* request;
     void(*handler)(void*, void*);
 } connection_queue_http1_data_t;
 
@@ -36,7 +37,7 @@ char* http1_get_fullpath(connection_t*);
 void http1_prepare_range(http1response_t*, ssize_t*, ssize_t*, size_t*, const size_t);
 int http1_queue_handler_add(connection_t*, void(*)(void*, void*));
 void http1_queue_handler(void*);
-connection_queue_http1_data_t* http1_queue_data_create(void(*)(void *, void *));
+connection_queue_http1_data_t* http1_queue_data_create(request_t*, void(*)(void *, void *));
 
 
 void http1_wrap_read(connection_t* connection, char* buffer, size_t buffer_size) {
@@ -505,14 +506,16 @@ int http1_queue_handler_add(connection_t* connection, void(*handle)(void *, void
 
     item->handle = http1_queue_handler;
     item->connection = connection;
-    item->data = (connection_queue_item_data_t*)http1_queue_data_create(handle);
+    item->data = (connection_queue_item_data_t*)http1_queue_data_create(connection->request, handle);
 
     if (item->data == NULL) {
         item->free(item);
         return 0;
     }
 
-    connection->queue_prepend(item);
+    item->connection->request = NULL;
+
+    connection->queue_append(item);
 
     return 1;
 }
@@ -521,15 +524,18 @@ void http1_queue_handler(void* arg) {
     connection_queue_item_t* item = arg;
     connection_queue_http1_data_t* data = (connection_queue_http1_data_t*)item->data;
 
+    item->connection->request = data->request;
+
     data->handler(item->connection->request, item->connection->response);
     item->connection->queue_pop(item->connection);
 }
 
-connection_queue_http1_data_t* http1_queue_data_create(void(*handle)(void *, void *)) {
+connection_queue_http1_data_t* http1_queue_data_create(request_t* request, void(*handle)(void *, void *)) {
     connection_queue_http1_data_t* data = malloc(sizeof * data);
     if (data == NULL) return NULL;
 
     data->base.free = free;
+    data->request = request;
     data->handler = handle;
 
     return data;

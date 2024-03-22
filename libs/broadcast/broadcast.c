@@ -216,7 +216,7 @@ void __broadcast_queue_add(connection_t* connection, const char* payload, size_t
         return;
     }
 
-    connection->queue_append(item);
+    connection->queue_append_broadcast(item);
 }
 
 void __broadcast_queue_handler(void* arg) {
