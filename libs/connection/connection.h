@@ -11,17 +11,27 @@
 #include "cqueue.h"
 
 struct mpxapi;
-struct connection_queue_item;
+struct connection;
+
+typedef struct connection_queue_item_data {
+    void(*free)(void*);
+} connection_queue_item_data_t;
+
+typedef struct connection_queue_item {
+    void(*free)(struct connection_queue_item*);
+    void(*handle)(void*);
+    struct connection* connection;
+    connection_queue_item_data_t* data;
+} connection_queue_item_t;
 
 typedef struct connection {
     int fd;
     int keepalive_enabled;
-    int closed;
-    int cqueue;
     in_addr_t ip;
     unsigned short int port;
     atomic_bool locked;
     atomic_bool onwrite;
+    atomic_int cqueue;
     struct mpxapi* api;
     SSL* ssl;
     SSL_CTX* ssl_ctx;
@@ -51,7 +61,6 @@ void connection_reset(connection_t*);
 int connection_trylock(connection_t*);
 int connection_lock(connection_t*);
 int connection_unlock(connection_t*);
-int connection_alive(connection_t*);
 int connection_trylockwrite(connection_t*);
 
 #endif

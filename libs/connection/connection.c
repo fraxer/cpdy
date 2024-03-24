@@ -52,7 +52,6 @@ connection_t* connection_alloc(int fd, mpxapi_t* api, in_addr_t ip, unsigned sho
     connection->fd = fd;
     connection->api = api;
     connection->keepalive_enabled = 0;
-    connection->closed = 0;
     connection->cqueue = 0;
     connection->ip = ip;
     connection->port = port;
@@ -83,8 +82,15 @@ connection_t* connection_alloc(int fd, mpxapi_t* api, in_addr_t ip, unsigned sho
     return connection;
 }
 
+void fn(void* data) {
+    connection_queue_item_t* d = data;
+    d->free(d);
+}
+
 void connection_free(connection_t* connection) {
     if (connection == NULL) return;
+
+    // log_error("Connection free\n");
 
     broadcast_clear(connection);
 
@@ -104,7 +110,8 @@ void connection_free(connection_t* connection) {
         connection->response = NULL;
     }
 
-    cqueue_free(connection->queue);
+    cqueue_freecb(connection->queue, fn);
+    connection->queue = NULL;
 
     free(connection);
 }
@@ -150,12 +157,6 @@ int connection_unlock(connection_t* connection) {
     }
 
     return 0;
-}
-
-int connection_alive(connection_t* connection) {
-    if (connection == NULL) return 0;
-
-    return connection->closed == 0;
 }
 
 int connection_trylockwrite(connection_t* connection) {

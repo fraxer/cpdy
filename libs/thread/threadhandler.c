@@ -39,22 +39,6 @@ void* thread_handler(void* arg) {
 
             continue;
         }
-        
-        // if (!connection_alive(connection)) {
-        //     item->free(item);
-
-        //     cqueue_lock(connection->queue);
-        //     const int queue_empty = cqueue_empty(connection->queue);
-        //     cqueue_unlock(connection->queue);
-
-        //     if (queue_empty && connection->cqueue == 0) {
-        //         connection_free(connection);
-        //         connection = NULL;
-        //     }
-
-        //     connection_unlock(connection);    
-        //     continue;
-        // }
 
         item->handle(item);
         item->free(item);

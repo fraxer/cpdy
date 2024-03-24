@@ -2,6 +2,7 @@
 #include "log.h"
 #include "multiplexing.h"
 #include "protocolmanager.h"
+#include "broadcast.h"
 #include "connection_queue.h"
 
 int __listener_create_connection(connection_t*, server_t*);
@@ -60,8 +61,12 @@ int __listener_after_read_request(connection_t* connection) {
 }
 
 int __listener_after_write_request(connection_t* connection) {
-    if (connection->keepalive_enabled == 0)
-        return connection->api->control_mod(connection, MPXIN | MPXHUP);
+    if (connection->keepalive_enabled == 0) {
+        broadcast_clear(connection);
+        connection_queue_clear(connection);
+
+        return connection->api->control_mod(connection, MPXOUT | MPXIN | MPXHUP);
+    }
 
     connection_reset(connection);
 
@@ -70,16 +75,12 @@ int __listener_after_write_request(connection_t* connection) {
         connection->switch_to_protocol = NULL;
     }
 
-    cqueue_lock(connection->queue);
-    const int onwrite = !cqueue_empty(connection->queue);
-    cqueue_unlock(connection->queue);
-
-    atomic_store(&connection->onwrite, 0);
-
-    if (onwrite) {
-        connection_queue_append_c(connection);
+    if (connection->cqueue > 0) {
+        atomic_store(&connection->onwrite, 0);
         return 1;
     }
+
+    atomic_store(&connection->onwrite, 1);
 
     return connection->api->control_mod(connection, MPXIN | MPXRDHUP);
 }
@@ -94,7 +95,8 @@ int __listener_queue_append(connection_queue_item_t* item) {
 }
 
 int __listener_queue_append_broadcast(connection_queue_item_t* item) {
-    connection_queue_guard_append_broadcast(item);
+    connection_queue_guard_append(item);
+
     return 1;
 }
 
@@ -104,8 +106,6 @@ int __listener_queue_pop(connection_t* connection) {
 
 int listener_connection_close(connection_t* connection) {
     connection_lock(connection);
-
-    log_error("Connection close\n");
 
     if (!connection->api->control_del(connection))
         log_error("Connection not removed from api\n");
@@ -117,18 +117,8 @@ int listener_connection_close(connection_t* connection) {
 
     shutdown(connection->fd, 2);
     close(connection->fd);
-    connection->closed = 1;
 
-    cqueue_lock(connection->queue);
-    const int queue_empty = cqueue_empty(connection->queue);
-    cqueue_unlock(connection->queue);
-
-    connection_queue_append_c(connection);
-
-    if (queue_empty && connection->cqueue == 0)
-        connection_free(connection);
-    else
-        connection_unlock(connection);
+    connection_free(connection);
 
     return 1;
 }
