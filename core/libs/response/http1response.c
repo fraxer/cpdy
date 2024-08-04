@@ -198,6 +198,7 @@ int __http1response_data_append(char* data, size_t* pos, const char* string, siz
 }
 
 void __http1response_data(http1response_t* response, const char* data) {
+    __http1response_reset(response);
     __http1response_datan(response, data, strlen(data));
 }
 

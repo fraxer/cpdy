@@ -264,10 +264,10 @@ void payload_jsonf(http1request_t* request, http1response_t* response) {
     json_free(document);
 }
 
-void template_engine(__attribute__((unused))http1request_t* request, http1response_t* response) {
+void template_engine(httpctx_t* ctx) {
     file_t file = storage_file_get("views", "/json.txt");
     if (!file.ok) {
-        response->data(response, "Error read json file");
+        ctx->response->data(ctx->response, "Error read json file");
         return;
     }
 
@@ -276,13 +276,13 @@ void template_engine(__attribute__((unused))http1request_t* request, http1respon
 
     jsondoc_t* document = json_init();
     if (document == NULL) {
-        response->data(response, "Json init error");
+        ctx->response->data(ctx->response, "Json init error");
         free(data);
         return;
     }
 
     if (!json_parse(document, data)) {
-        response->data(response, "Json parse error");
+        ctx->response->data(ctx->response, "Json parse error");
         free(data);
         return;
     }
@@ -291,11 +291,11 @@ void template_engine(__attribute__((unused))http1request_t* request, http1respon
 
     jsontok_t* object = json_root(document);
     if (!json_is_object(object)) {
-        response->data(response, "Document is not object");
+        ctx->response->data(ctx->response, "Document is not object");
         return;
     }
 
-    response->view(response, document, "views", "/index.tpl");
+    ctx->response->view(ctx->response, document, "views", "/index.tpl");
 
     json_free(document);
 }

@@ -53,7 +53,7 @@ static route_t* __module_loader_http_routes_load(routeloader_lib_t** first_lib, 
 static int __module_loader_set_http_route(routeloader_lib_t** first_lib, routeloader_lib_t** last_lib, route_t* route, const jsontok_t* token_object);
 static void __module_loader_pass_memory_sharedlib(routeloader_lib_t*, const char*);
 static redirect_t* __module_loader_http_redirects_load(const jsontok_t* token_object);
-static void __module_loader_websockets_default_load(void(**fn)(void*, void*), routeloader_lib_t** first_lib, const jsontok_t* token_array);
+static void __module_loader_websockets_default_load(void(**fn)(void*), routeloader_lib_t** first_lib, const jsontok_t* token_array);
 static route_t* __module_loader_websockets_routes_load(routeloader_lib_t** first_lib, const jsontok_t* token_object);
 static int __module_loader_set_websockets_route(routeloader_lib_t** first_lib, routeloader_lib_t** last_lib, route_t* route, const jsontok_t* token_object);
 static openssl_t* __module_loader_tls_load(const jsontok_t* token_object);
@@ -705,7 +705,7 @@ int __module_loader_servers_load(appconfig_t* config, const jsontok_t* token_ser
         }
 
         if (finded_fields[WEBSOCKETS] == 0)
-            server->websockets.default_handler = (void(*)(void*, void*))websockets_default_handler;
+            server->websockets.default_handler = (void(*)(void*))websockets_default_handler;
 
         if (!__module_loader_check_unique_domainport(first_server)) {
             log_error("__module_loader_servers_load: domains with ports must be unique\n");
@@ -1089,7 +1089,7 @@ int __module_loader_set_http_route(routeloader_lib_t** first_lib, routeloader_li
             *last_lib = routeloader_lib;
         }
 
-        void(*function)(void*, void*);
+        void(*function)(void*);
         *(void**)(&function) = routeloader_get_handler(*first_lib, lib_file, lib_handler);
         if (function == NULL) {
             log_error("__module_loader_set_http_route: failed to get handler %s.%s\n", lib_file, lib_handler);
@@ -1174,8 +1174,8 @@ redirect_t* __module_loader_http_redirects_load(const jsontok_t* token_object) {
     return result;
 }
 
-void __module_loader_websockets_default_load(void(**fn)(void*, void*), routeloader_lib_t** first_lib, const jsontok_t* token_array) {
-    *fn = (void(*)(void*, void*))websockets_default_handler;
+void __module_loader_websockets_default_load(void(**fn)(void*), routeloader_lib_t** first_lib, const jsontok_t* token_array) {
+    *fn = (void(*)(void*))websockets_default_handler;
 
     if (token_array == NULL) return;
     if (!json_is_array(token_array)) {
@@ -1342,7 +1342,7 @@ int __module_loader_set_websockets_route(routeloader_lib_t** first_lib, routeloa
             *last_lib = routeloader_lib;
         }
 
-        void(*function)(void*, void*);
+        void(*function)(void*);
         *(void**)(&function) = routeloader_get_handler(*first_lib, lib_file, lib_handler);
 
         if (function == NULL) {
