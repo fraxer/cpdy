@@ -9,6 +9,7 @@
  */
 static middleware_global_fn_t __middleware_list[] = {
     {"middleware_http_forbidden", (middleware_fn_p)middleware_http_forbidden},
+    {"middleware_http_test_header", (middleware_fn_p)middleware_http_test_header},
 };
 
 middleware_fn_p middleware_by_name(const char* name) {
