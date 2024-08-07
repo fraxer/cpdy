@@ -25,6 +25,7 @@
 #include "threadworker.h"
 #include "broadcast.h"
 #include "connection_queue.h"
+#include "middlewarelist.h"
 #ifdef MySQL_FOUND
     #include "mysql.h"
 #endif
@@ -53,6 +54,7 @@ static route_t* __module_loader_http_routes_load(routeloader_lib_t** first_lib, 
 static int __module_loader_set_http_route(routeloader_lib_t** first_lib, routeloader_lib_t** last_lib, route_t* route, const jsontok_t* token_object);
 static void __module_loader_pass_memory_sharedlib(routeloader_lib_t*, const char*);
 static redirect_t* __module_loader_http_redirects_load(const jsontok_t* token_object);
+static middleware_item_t* __module_loader_middlewares_load(const jsontok_t* token_object);
 static void __module_loader_websockets_default_load(void(**fn)(void*), routeloader_lib_t** first_lib, const jsontok_t* token_array);
 static route_t* __module_loader_websockets_routes_load(routeloader_lib_t** first_lib, const jsontok_t* token_object);
 static int __module_loader_set_websockets_route(routeloader_lib_t** first_lib, routeloader_lib_t** last_lib, route_t* route, const jsontok_t* token_object);
@@ -660,6 +662,7 @@ int __module_loader_servers_load(appconfig_t* config, const jsontok_t* token_ser
 
                 server->http.route = __module_loader_http_routes_load(&first_lib, json_object_get(token_value, "routes"));
                 server->http.redirect = __module_loader_http_redirects_load(json_object_get(token_value, "redirects"));
+                server->http.middleware = __module_loader_middlewares_load(json_object_get(token_value, "middlewares"));
             }
             else if (strcmp(key, "websockets") == 0) {
                 finded_fields[WEBSOCKETS] = 1;
@@ -672,6 +675,7 @@ int __module_loader_servers_load(appconfig_t* config, const jsontok_t* token_ser
                 __module_loader_websockets_default_load(&server->websockets.default_handler, &first_lib, json_object_get(token_value, "default"));
 
                 server->websockets.route = __module_loader_websockets_routes_load(&first_lib, json_object_get(token_value, "routes"));
+                server->websockets.middleware = __module_loader_middlewares_load(json_object_get(token_value, "middlewares"));
             }
             else if (strcmp(key, "tls") == 0) {
                 finded_fields[OPENSSL] = 1;
@@ -1170,6 +1174,61 @@ redirect_t* __module_loader_http_redirects_load(const jsontok_t* token_object) {
 
     if (result == NULL)
         redirect_free(first_redirect);
+
+    return result;
+}
+
+middleware_item_t* __module_loader_middlewares_load(const jsontok_t* token_array) {
+    middleware_item_t* result = NULL;
+    middleware_item_t* first_middleware = NULL;
+    middleware_item_t* last_middleware = NULL;
+
+    if (token_array == NULL) return NULL;
+    if (!json_is_array(token_array)) {
+        log_error("__module_loader_middlewares_load: http.middlewares must be array\n");
+        goto failed;
+    }
+    if (json_array_size(token_array) == 0) return NULL;
+
+    for (jsonit_t it = json_init_it(token_array); !json_end_it(&it); json_next_it(&it)) {
+        jsontok_t* token_value = json_it_value(&it);
+        if (!json_is_string(token_value)) {
+            log_error("__module_loader_middlewares_load: http.middlewares item.value must be string\n");
+            goto failed;
+        }
+        if (token_value->size == 0) {
+            log_error("__module_loader_middlewares_load: http.middlewares item.value is empty\n");
+            goto failed;
+        }
+
+        const char* middleware_name = json_string(token_value);
+        middleware_fn_p fn = middleware_by_name(middleware_name);
+        if (fn == NULL) {
+            log_error("__module_loader_middlewares_load: failed to find middleware %s\n", middleware_name);
+            goto failed;
+        }
+
+        middleware_item_t* middleware_item = middleware_create(fn);
+        if (middleware_item == NULL) {
+            log_error("__module_loader_middlewares_load: failed to create middleware\n");
+            goto failed;
+        }
+
+        if (first_middleware == NULL)
+            first_middleware = middleware_item;
+
+        if (last_middleware != NULL)
+            last_middleware->next = middleware_item;
+
+        last_middleware = middleware_item;
+    }
+
+    result = first_middleware;
+
+    failed:
+
+    if (result == NULL)
+        middlewares_free(first_middleware);
 
     return result;
 }

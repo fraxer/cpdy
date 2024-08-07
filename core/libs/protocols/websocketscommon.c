@@ -3,6 +3,7 @@
 
 #include "websocketscommon.h"
 #include "wscontext.h"
+#include "middleware.h"
 
 websockets_query_t* websockets_query_alloc() {
     return (websockets_query_t*)malloc(sizeof(websockets_query_t));
