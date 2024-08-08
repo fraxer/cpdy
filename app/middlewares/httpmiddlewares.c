@@ -1,7 +1,6 @@
 #include <string.h>
 
-#include "auth.h"
-#include "middlewares.h"
+#include "httpmiddlewares.h"
 
 int middleware_http_forbidden(httpctx_t* ctx) {
     ctx->response->def(ctx->response, 403);

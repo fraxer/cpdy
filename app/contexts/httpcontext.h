@@ -3,10 +3,8 @@
 
 #include "http1request.h"
 #include "http1response.h"
-#include "user.h"
 
 typedef struct httpctx {
-    user_t* user;
     http1request_t* request;
     http1response_t* response;
 

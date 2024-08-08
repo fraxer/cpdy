@@ -1,6 +1,7 @@
 #include "websockets.h"
 #include "broadcast.h"
 #include "mybroadcast.h"
+#include "wsmiddlewares.h"
 
 static const char* broadcast_name = "my_broadcast_name";
 
@@ -93,4 +94,12 @@ void channel_send(websocketsrequest_t* request, websocketsresponse_t* response) 
     free(data);
 
     response->data(response, "done");
+}
+
+void wsmiddleware(wsctx_t* ctx) {
+    middleware(
+        middleware_ws_query_param_required(ctx, args_str("abc"))
+    )
+
+    ctx->response->data(ctx->response, "done");
 }

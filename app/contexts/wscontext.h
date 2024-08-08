@@ -3,10 +3,8 @@
 
 #include "websocketsrequest.h"
 #include "websocketsresponse.h"
-#include "user.h"
 
 typedef struct wsctx {
-    user_t* user;
     struct websocketsrequest* request;
     websocketsresponse_t* response;
 
@@ -14,5 +12,6 @@ typedef struct wsctx {
 } wsctx_t;
 
 wsctx_t* wsctx_create(void* request, void* response);
+void wsctx_free(wsctx_t* ctx);
 
 #endif

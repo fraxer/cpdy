@@ -1,8 +1,7 @@
-#ifndef __MIDDLEWARES__
-#define __MIDDLEWARES__
+#ifndef __HTTPMIDDLEWARES__
+#define __HTTPMIDDLEWARES__
 
 #include "httpcontext.h"
-#include "wscontext.h"
 #include "middleware.h"
 
 int middleware_http_forbidden(httpctx_t* ctx);

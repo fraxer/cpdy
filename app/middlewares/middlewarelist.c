@@ -1,7 +1,8 @@
 #include <string.h>
 
 #include "middlewarelist.h"
-#include "middlewares.h"
+#include "httpmiddlewares.h"
+#include "wsmiddlewares.h"
 
 /**
  * Middleware functions registered in this list are called globally for the server context.

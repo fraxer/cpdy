@@ -70,8 +70,8 @@ void post(http1request_t* request, http1response_t* response) {
     json_free(document);
 }
 
-void websocket(http1request_t* request, http1response_t* response) {
-    switch_to_websockets(request, response);
+void websocket(httpctx_t* ctx) {
+    switch_to_websockets(ctx);
 }
 
 void mysql(http1request_t* request, http1response_t* response) {

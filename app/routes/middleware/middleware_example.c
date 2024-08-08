@@ -1,7 +1,7 @@
 #include <string.h>
 
 #include "http1.h"
-#include "middlewares.h"
+#include "httpmiddlewares.h"
 
 void example(httpctx_t* ctx) {
     middleware(
